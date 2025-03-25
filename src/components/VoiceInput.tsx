@@ -4,38 +4,80 @@ import { Mic, MicOff } from "lucide-react";
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
+  iconOnly?: boolean;
 }
 
-export default function VoiceInput({ onTranscript }: VoiceInputProps) {
+// Define types for SpeechRecognition
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+}
+
+// Define the global SpeechRecognition constructor
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionInstance;
+}
+
+// Augment the Window interface
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+export default function VoiceInput({ onTranscript, iconOnly = false }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [recognition, setRecognition] = useState<any>(null);
+  const [recognition, setRecognition] = useState<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
     // Check if browser supports speech recognition
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-      // @ts-ignore - TypeScript doesn't know about webkitSpeechRecognition
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognition();
+      
+      if (SpeechRecognition) {
+        const recognitionInstance = new SpeechRecognition();
 
-      recognitionInstance.continuous = true;
-      recognitionInstance.interimResults = true;
-      recognitionInstance.lang = "de-DE"; // Set to German
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = "de-DE"; // Set to German
 
-      recognitionInstance.onresult = (event: any) => {
-        const current = event.resultIndex;
-        const transcriptText = event.results[current][0].transcript;
-        setTranscript(transcriptText);
-        onTranscript(transcriptText);
-      };
+        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+          const current = event.resultIndex;
+          const transcriptText = event.results[current][0].transcript;
+          setTranscript(transcriptText);
+          onTranscript(transcriptText);
+        };
 
-      recognitionInstance.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
-        setIsListening(false);
-      };
+        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error("Speech recognition error", event.error);
+          setIsListening(false);
+        };
 
-      setRecognition(recognitionInstance);
+        setRecognition(recognitionInstance);
+      }
     }
 
     return () => {
@@ -60,21 +102,22 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <Button
-        variant={isListening ? "destructive" : "default"}
+      <Button 
+        variant={isListening ? "destructive" : "default"} 
         onClick={toggleListening}
         disabled={!recognition}
-        className="flex items-center gap-2"
+        className={`inline-flex items-center justify-center ${iconOnly ? 'p-2' : ''}`}
+        title={isListening ? "Aufnahme stoppen" : "Spracheingabe"}
       >
         {isListening ? (
           <>
             <MicOff className="h-5 w-5" />
-            Aufnahme stoppen
+            {!iconOnly && <span className="ml-2">Aufnahme stoppen</span>}
           </>
         ) : (
           <>
             <Mic className="h-5 w-5" />
-            Sprachsteuerung
+            {!iconOnly && <span className="ml-2">Spracheingabe</span>}
           </>
         )}
       </Button>

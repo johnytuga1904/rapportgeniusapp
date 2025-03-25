@@ -12,7 +12,7 @@ const basename = import.meta.env.BASE_URL;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ThemeProvider defaultTheme="system" storageKey="rapporttempo-theme">
+    <ThemeProvider>
       <BrowserRouter basename={basename}>
         <App />
       </BrowserRouter>

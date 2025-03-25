@@ -38,6 +38,7 @@ interface WorkEntry {
 export interface WorkReportProps {
   report: any;
   onDataChange?: (data: any) => void;
+  initialData?: any;
 }
 
 // Memoized table row component to prevent unnecessary re-renders
@@ -159,7 +160,7 @@ const emptyEntry: WorkEntry = {
   notes: "",
 };
 
-const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange }) => {
+const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialData }) => {
   const [name, setName] = useState<string>("");
   const [period, setPeriod] = useState<string>("");
   const [entries, setEntries] = useState<WorkEntry[]>([]);
@@ -541,7 +542,7 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange }) => {
           <div className="p-4 space-y-4">
             <FileUpload onFileUpload={handleFileUpload} />
             <div className="flex justify-end">
-              <Button onClick={handleAddEntry}>Eintrag hinzufügen</Button>
+              <Button onClick={handleAddEntry} className="inline-flex items-center justify-center">Eintrag hinzufügen</Button>
             </div>
           </div>
         </CardContent>

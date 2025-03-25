@@ -27,9 +27,10 @@ interface SavedReport {
 
 interface ReportHistoryProps {
   onLoadReport: (report: SavedReport) => void;
+  iconOnly?: boolean;
 }
 
-export default function ReportHistory({ onLoadReport }: ReportHistoryProps) {
+export default function ReportHistory({ onLoadReport, iconOnly = false }: ReportHistoryProps) {
   const [open, setOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
 
@@ -59,9 +60,9 @@ export default function ReportHistory({ onLoadReport }: ReportHistoryProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <History className="h-5 w-5 mr-2" />
-          Gespeicherte Berichte
+        <Button variant="outline" className={`inline-flex items-center justify-center ${iconOnly ? 'p-2' : ''}`} title="Gespeicherte Berichte">
+          <History className="h-5 w-5" />
+          {!iconOnly && <span className="ml-2">Gespeicherte Berichte</span>}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[800px]">
