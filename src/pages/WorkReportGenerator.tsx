@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 
 interface WorkEntry {
   id: string;
-  date: string;
+  date: Date;
   name: string;
   orderNumber: string;
   location: string;
@@ -36,7 +36,7 @@ const WorkReportGenerator = () => {
   const [entries, setEntries] = useState<WorkEntry[]>([
     {
       id: "1",
-      date: "2023-06-15",
+      date: new Date("2023-06-15"),
       name: "Max Mustermann",
       orderNumber: "ZH-2023-001",
       location: "Zürich",
@@ -47,7 +47,7 @@ const WorkReportGenerator = () => {
     },
     {
       id: "2",
-      date: "2023-06-16",
+      date: new Date("2023-06-16"),
       name: "Max Mustermann",
       orderNumber: "ZH-2023-001",
       location: "Winterthur",
@@ -61,7 +61,7 @@ const WorkReportGenerator = () => {
   const handleFormSubmit = (formData: ReportFormData) => {
     const newEntry: WorkEntry = {
       id: uuidv4(),
-      date: formData.date.toISOString().split("T")[0],
+      date: formData.date,
       name: formData.name,
       orderNumber: formData.orderNumber,
       location: formData.location,
@@ -129,7 +129,12 @@ const WorkReportGenerator = () => {
           </div>
 
           <TabsContent value="form" className="space-y-6">
-            <ReportForm onSubmit={handleFormSubmit} />
+            <ReportForm 
+              onSubmit={handleFormSubmit} 
+              onReportGenerated={(report) => {
+                console.log('Report generated:', report);
+              }} 
+            />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-6">
