@@ -22,7 +22,23 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { emailService } from "@/services/emailService";
-import { toast } from "sonner";
+
+// Fallback für toast, falls sonner nicht verfügbar ist
+const showNotification = (message: string, type: 'success' | 'error') => {
+  try {
+    // Versuche, toast aus sonner zu importieren
+    const { toast } = require('sonner');
+    toast[type](message);
+  } catch (error) {
+    // Fallback: Verwende alert, wenn sonner nicht verfügbar ist
+    console.log(`${type.toUpperCase()}: ${message}`);
+    if (type === 'error') {
+      alert(`Fehler: ${message}`);
+    } else {
+      alert(message);
+    }
+  }
+};
 
 interface WorkEntry {
   date: Date;
@@ -395,10 +411,10 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
       link.click();
       document.body.removeChild(link);
       
-      toast.success("CSV-Datei wurde erfolgreich exportiert");
+      showNotification("CSV-Datei wurde erfolgreich exportiert", 'success');
     } catch (error) {
       console.error("Fehler beim CSV-Export:", error);
-      toast.error("Fehler beim Exportieren der CSV-Datei");
+      showNotification("Fehler beim Exportieren der CSV-Datei", 'error');
     }
   };
 
@@ -426,10 +442,10 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
       
       // E-Mail senden
       await emailService.sendReport(email, reportData);
-      toast.success("Bericht wurde per E-Mail gesendet");
+      showNotification("Bericht wurde per E-Mail gesendet", 'success');
     } catch (error) {
       console.error("Fehler beim E-Mail-Versand:", error);
-      toast.error("Fehler beim Senden der E-Mail");
+      showNotification("Fehler beim Senden der E-Mail", 'error');
     }
   };
 
