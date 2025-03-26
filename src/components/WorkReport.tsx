@@ -8,19 +8,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import LocationAutocomplete from "./LocationAutocomplete";
-import ObjectAutocomplete from "./ObjectAutocomplete";
-import DateRangePicker from "./DateRangePicker";
-import { Edit, Trash2, CalendarIcon, MessageSquare } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import DateRangePicker from "./DateRangePicker";
+import ObjectAutocomplete from "./ObjectAutocomplete";
+import LocationAutocomplete from "./LocationAutocomplete";
+import { Edit, Trash2, CalendarIcon, MessageSquare, FileText, Mail, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { emailService } from "@/services/emailService";
+import { toast } from "sonner";
 
 interface WorkEntry {
   date: Date;
@@ -355,6 +357,82 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
     setExpensesDialogOpen(false);
   };
 
+  // CSV-Export-Funktion
+  const exportToCSV = () => {
+    try {
+      // CSV-Header
+      let csvContent = "Datum,Auftrag Nr.,Objekt oder Strasse,Ort,Std.,Absenzen,Überstd.,Auslagen und Bemerkungen,Auslagen Fr.,Notizen\n";
+      
+      // CSV-Daten aus Einträgen
+      entries.forEach(entry => {
+        const formattedDate = format(entry.date, "dd.MM.yyyy");
+        const row = [
+          formattedDate,
+          entry.orderNumber,
+          entry.object,
+          entry.location,
+          entry.hours.toString().replace('.', ','),
+          entry.absences.toString().replace('.', ','),
+          entry.overtime.toString().replace('.', ','),
+          `"${entry.expenses.replace(/"/g, '""')}"`,
+          entry.expenseAmount.toString().replace('.', ','),
+          `"${entry.notes ? entry.notes.replace(/"/g, '""') : ''}"`
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+      
+      // Zusammenfassung hinzufügen
+      csvContent += `\nTotal,,,,${totalHours.toString().replace('.', ',')},${totalAbsences.toString().replace('.', ',')},${totalOvertime.toString().replace('.', ',')},,,${totalExpenses.toString().replace('.', ',')}\n`;
+      csvContent += `Total Sollstunden,,,,${totalRequiredHours.toString().replace('.', ',')}\n`;
+      
+      // CSV-Datei erstellen und herunterladen
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Arbeitsrapport_${name.replace(/\s+/g, '_')}_${period.replace(/\s+/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("CSV-Datei wurde erfolgreich exportiert");
+    } catch (error) {
+      console.error("Fehler beim CSV-Export:", error);
+      toast.error("Fehler beim Exportieren der CSV-Datei");
+    }
+  };
+
+  // E-Mail-Versand-Funktion
+  const sendReportByEmail = async () => {
+    try {
+      // E-Mail-Dialog öffnen
+      const email = prompt("Bitte geben Sie die E-Mail-Adresse ein:");
+      if (!email) return;
+      
+      // Daten für den E-Mail-Versand vorbereiten
+      const reportData = {
+        name,
+        period,
+        entries: entries.map(entry => ({
+          ...entry,
+          date: format(entry.date, "dd.MM.yyyy")
+        })),
+        totalHours,
+        totalAbsences,
+        totalOvertime,
+        totalExpenses,
+        totalRequiredHours
+      };
+      
+      // E-Mail senden
+      await emailService.sendReport(email, reportData);
+      toast.success("Bericht wurde per E-Mail gesendet");
+    } catch (error) {
+      console.error("Fehler beim E-Mail-Versand:", error);
+      toast.error("Fehler beim Senden der E-Mail");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card className="shadow-md">
@@ -656,8 +734,19 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <Button onClick={handleAddEntry}>Eintrag hinzufügen</Button>
+          <div className="mt-4 flex justify-end space-x-2">
+            <Button onClick={handleAddEntry} className="flex items-center gap-1">
+              <FileText className="h-4 w-4 mr-1" />
+              Eintrag hinzufügen
+            </Button>
+            <Button onClick={exportToCSV} variant="outline" className="flex items-center gap-1">
+              <Download className="h-4 w-4 mr-1" />
+              Als CSV exportieren
+            </Button>
+            <Button onClick={sendReportByEmail} variant="outline" className="flex items-center gap-1">
+              <Mail className="h-4 w-4 mr-1" />
+              Per E-Mail senden
+            </Button>
           </div>
         </CardContent>
       </Card>
