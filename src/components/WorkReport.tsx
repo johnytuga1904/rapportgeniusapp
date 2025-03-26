@@ -14,12 +14,13 @@ import { Label } from "@/components/ui/label";
 import LocationAutocomplete from "./LocationAutocomplete";
 import ObjectAutocomplete from "./ObjectAutocomplete";
 import DateRangePicker from "./DateRangePicker";
-import FileUpload from "./FileUpload";
-import { Edit, Trash2, CalendarIcon } from "lucide-react";
+import { Edit, Trash2, CalendarIcon, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 interface WorkEntry {
   date: Date;
@@ -31,7 +32,6 @@ interface WorkEntry {
   overtime: number;
   expenses: string;
   expenseAmount: number;
-  files?: File[];
   notes?: string;
 }
 
@@ -54,6 +54,21 @@ const EntryRow = memo(
     onEdit: (index: number, entry: WorkEntry) => void;
     onDelete: (index: number) => void;
   }) => {
+    const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+    const [tempNotes, setTempNotes] = useState(entry.notes || "");
+    const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
+    const [tempExpenses, setTempExpenses] = useState(entry.expenses || "");
+    
+    const handleSaveNotes = () => {
+      onEdit(index, { ...entry, notes: tempNotes });
+      setNotesDialogOpen(false);
+    };
+    
+    const handleSaveExpenses = () => {
+      onEdit(index, { ...entry, expenses: tempExpenses });
+      setExpensesDialogOpen(false);
+    };
+    
     return (
       <TableRow>
         <TableCell className="border text-foreground">
@@ -91,31 +106,74 @@ const EntryRow = memo(
         <TableCell className="border text-foreground">
           {entry.orderNumber}
         </TableCell>
-        <TableCell className="border text-foreground">{entry.object}</TableCell>
-        <TableCell className="border text-foreground">
-          {entry.location}
-        </TableCell>
-        <TableCell className="border text-foreground">
+        <TableCell className="border text-foreground w-64">{entry.object}</TableCell>
+        <TableCell className="border text-foreground">{entry.location}</TableCell>
+        <TableCell className="border text-foreground w-14 text-center">
           {entry.hours.toFixed(2)}
         </TableCell>
-        <TableCell className="border text-foreground">
+        <TableCell className="border text-foreground w-14 text-center">
           {entry.absences > 0 ? entry.absences.toFixed(2) : ""}
         </TableCell>
-        <TableCell className="border text-foreground">
+        <TableCell className="border text-foreground w-14 text-center">
           {entry.overtime > 0 ? entry.overtime.toFixed(2) : ""}
         </TableCell>
         <TableCell className="border text-foreground">
-          {entry.expenses}
+          <div className="flex items-center gap-1">
+            <span className="truncate max-w-[150px] cursor-pointer" onClick={() => {
+                setTempExpenses(entry.expenses || "");
+                setExpensesDialogOpen(true);
+              }}>
+              {entry.expenses || ""}
+            </span>
+            
+            <Dialog open={expensesDialogOpen} onOpenChange={setExpensesDialogOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Auslagen und Bemerkungen bearbeiten</DialogTitle>
+                </DialogHeader>
+                <Textarea 
+                  value={tempExpenses} 
+                  onChange={(e) => setTempExpenses(e.target.value)}
+                  className="min-h-[150px]"
+                  placeholder="Auslagen und Bemerkungen hier eingeben..."
+                />
+                <DialogFooter>
+                  <Button type="submit" onClick={handleSaveExpenses}>Speichern</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </TableCell>
-        <TableCell className="border text-foreground">
+        <TableCell className="border text-foreground w-16 text-center">
           {entry.expenseAmount > 0 ? entry.expenseAmount.toFixed(2) : ""}
         </TableCell>
-        <TableCell className="border text-foreground">
-          {entry.files && entry.files.length > 0 && (
-            <span className="text-xs">{entry.files.length} Datei(en)</span>
-          )}
+        <TableCell className="border text-foreground w-32">
+          <div className="flex items-center gap-1">
+            <span className="truncate max-w-[100px] cursor-pointer" onClick={() => {
+                setTempNotes(entry.notes || "");
+                setNotesDialogOpen(true);
+              }}>
+              {entry.notes || ""}
+            </span>
+            
+            <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Notizen bearbeiten</DialogTitle>
+                </DialogHeader>
+                <Textarea 
+                  value={tempNotes} 
+                  onChange={(e) => setTempNotes(e.target.value)}
+                  className="min-h-[150px]"
+                  placeholder="Notizen hier eingeben..."
+                />
+                <DialogFooter>
+                  <Button type="submit" onClick={handleSaveNotes}>Speichern</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </TableCell>
-        <TableCell className="border text-foreground">{entry.notes}</TableCell>
         <TableCell className="border">
           <div className="flex gap-1 justify-end">
             <Button
@@ -156,7 +214,6 @@ const emptyEntry: WorkEntry = {
   overtime: 0,
   expenses: "",
   expenseAmount: 0,
-  files: [],
   notes: "",
 };
 
@@ -165,7 +222,11 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
   const [period, setPeriod] = useState<string>("");
   const [entries, setEntries] = useState<WorkEntry[]>([]);
   const [newEntry, setNewEntry] = useState<WorkEntry>({ ...emptyEntry });
-
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [tempNotes, setTempNotes] = useState("");
+  const [expensesDialogOpen, setExpensesDialogOpen] = useState(false);
+  const [tempExpenses, setTempExpenses] = useState("");
+  
   // Update state when report changes
   useEffect(() => {
     if (report) {
@@ -243,13 +304,6 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
     setEntries((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleFileUpload = useCallback((file: File) => {
-    setNewEntry((prev) => ({
-      ...prev,
-      files: [...(prev.files || []), file],
-    }));
-  }, []);
-
   // Handle input changes for the new entry
   const handleNewEntryChange = useCallback(
     (field: keyof WorkEntry, value: any) => {
@@ -291,259 +345,319 @@ const WorkReport: React.FC<WorkReportProps> = ({ report, onDataChange, initialDa
     [handleNewEntryChange],
   );
 
+  const handleSaveNotes = () => {
+    handleNewEntryChange("notes", tempNotes);
+    setNotesDialogOpen(false);
+  };
+
+  const handleSaveExpenses = () => {
+    handleNewEntryChange("expenses", tempExpenses);
+    setExpensesDialogOpen(false);
+  };
+
   return (
-    <div className="container mx-auto p-2 sm:p-4 bg-background">
-      <Card className="w-full">
-        <CardHeader className="text-center border-b">
-          <CardTitle className="text-xl sm:text-2xl font-bold text-foreground">
-            MONTAGE RAPPORT
-          </CardTitle>
-          <div className="flex flex-col sm:flex-row justify-between gap-4 mt-4">
-            <div className="flex items-center">
-              <Label htmlFor="period" className="mr-2">
-                Zeitraum:
-              </Label>
-              <div className="w-64">
-                <DateRangePicker
-                  value={period}
-                  onChange={setPeriod}
-                  placeholder="Zeitraum auswählen"
-                />
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Label htmlFor="name" className="mr-2">
-                Name:
+    <div className="space-y-4">
+      <Card className="shadow-md">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle>Arbeitsrapport</CardTitle>
+        </CardHeader>
+        <CardContent className="px-2 sm:px-6 pb-6">
+          <div className="grid gap-4 sm:grid-cols-2 mb-6">
+            <div>
+              <Label htmlFor="report-name" className="mb-2 block">
+                Name
               </Label>
               <Input
-                id="name"
+                id="report-name"
+                placeholder="Name des Berichts"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Flavio Santos de Almeida"
-                className="w-64"
+              />
+            </div>
+            <div>
+              <Label htmlFor="report-period" className="mb-2 block">
+                Zeitraum
+              </Label>
+              <DateRangePicker
+                value={period}
+                onChange={setPeriod}
+                placeholder="Zeitraum auswählen"
               />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="border text-foreground font-bold">
-                    Datum
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Auftrag Nr.
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Objekt oder Strasse
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Ort
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Std.
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Absenzen
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Überstd.
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Auslagen und Bemerkungen
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Auslagen Fr.
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Dateien
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Notizen
-                  </TableHead>
-                  <TableHead className="border text-foreground font-bold">
-                    Aktionen
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entries.map((entry, index) => (
-                  <EntryRow
-                    key={`entry-${index}`}
-                    entry={entry}
-                    index={index}
-                    onEdit={handleEditEntry}
-                    onDelete={handleDeleteEntry}
-                  />
-                ))}
-                {/* Input row for new entries */}
-                <TableRow>
-                  <TableCell className="border">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !newEntry.date && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(newEntry.date, "dd.MM.yyyy")}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={newEntry.date}
-                          onSelect={(date) => handleNewEntryChange("date", date || new Date())}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="text"
-                      value={newEntry.orderNumber}
-                      onChange={(e) =>
-                        handleNewEntryChange("orderNumber", e.target.value)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <ObjectAutocomplete
-                      value={newEntry.object}
-                      onChange={(value) =>
-                        handleNewEntryChange("object", value)
-                      }
-                      placeholder="Inselweg 31"
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <LocationAutocomplete
-                      value={newEntry.location}
-                      onChange={(value) =>
-                        handleNewEntryChange("location", value)
-                      }
-                      placeholder="Hurden"
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="number"
-                      value={newEntry.hours || ""}
-                      onChange={(e) =>
-                        handleNewEntryChange(
-                          "hours",
-                          parseFloat(e.target.value) || 0,
-                        )
-                      }
-                      placeholder="5.00"
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="number"
-                      value={newEntry.absences || ""}
-                      onChange={(e) =>
-                        handleNewEntryChange(
-                          "absences",
-                          parseFloat(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="number"
-                      value={newEntry.overtime || ""}
-                      onChange={(e) =>
-                        handleNewEntryChange(
-                          "overtime",
-                          parseFloat(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="text"
-                      value={newEntry.expenses}
-                      onChange={(e) =>
-                        handleNewEntryChange("expenses", e.target.value)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="number"
-                      value={newEntry.expenseAmount || ""}
-                      onChange={(e) =>
-                        handleNewEntryChange(
-                          "expenseAmount",
-                          parseFloat(e.target.value) || 0,
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border"></TableCell>
-                  <TableCell className="border">
-                    <Input
-                      type="text"
-                      value={newEntry.notes || ""}
-                      onChange={(e) =>
-                        handleNewEntryChange("notes", e.target.value)
-                      }
-                      placeholder="Notizen"
-                    />
-                  </TableCell>
-                  <TableCell className="border"></TableCell>
-                </TableRow>
-                {/* Summary rows */}
-                <TableRow>
-                  <TableCell colSpan={3} className="border"></TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    Total
-                  </TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    {totalHours.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    {totalAbsences > 0 ? totalAbsences.toFixed(2) : ""}
-                  </TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    {totalOvertime > 0 ? totalOvertime.toFixed(2) : ""}
-                  </TableCell>
-                  <TableCell className="border"></TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    Total {totalExpenses.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="border"></TableCell>
-                  <TableCell className="border"></TableCell>
-                  <TableCell className="border"></TableCell>
-                </TableRow>
 
-                <TableRow>
-                  <TableCell colSpan={3} className="border"></TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    Total Sollstunden
-                  </TableCell>
-                  <TableCell className="border font-bold text-foreground">
-                    {totalRequiredHours.toFixed(2)}
-                  </TableCell>
-                  <TableCell colSpan={7} className="border"></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          <div className="p-4 space-y-4">
-            <FileUpload onFileUpload={handleFileUpload} />
-            <div className="flex justify-end">
-              <Button onClick={handleAddEntry} className="inline-flex items-center justify-center">Eintrag hinzufügen</Button>
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <Table className="min-w-full">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="border text-foreground font-bold whitespace-nowrap">
+                      Datum
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold whitespace-nowrap">
+                      Auftrag Nr.
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-64 whitespace-nowrap">
+                      Objekt oder Strasse
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold whitespace-nowrap">
+                      Ort
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-14 text-center whitespace-nowrap">
+                      Std.
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-14 text-center whitespace-nowrap">
+                      Absenzen
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-14 text-center whitespace-nowrap">
+                      Überstd.
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold whitespace-nowrap">
+                      Auslagen und Bemerkungen
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-16 text-center whitespace-nowrap">
+                      Auslagen Fr.
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold w-32 whitespace-nowrap">
+                      Notizen
+                    </TableHead>
+                    <TableHead className="border text-foreground font-bold whitespace-nowrap">
+                      Aktionen
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((entry, index) => (
+                    <EntryRow
+                      key={`entry-${index}`}
+                      entry={entry}
+                      index={index}
+                      onEdit={handleEditEntry}
+                      onDelete={handleDeleteEntry}
+                    />
+                  ))}
+                  {/* Input row for new entries */}
+                  <TableRow>
+                    <TableCell className="border">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !newEntry.date && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(newEntry.date, "dd.MM.yyyy")}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={newEntry.date}
+                            onSelect={(date) => handleNewEntryChange("date", date || new Date())}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </TableCell>
+                    <TableCell className="border">
+                      <Input
+                        type="text"
+                        value={newEntry.orderNumber}
+                        onChange={(e) =>
+                          handleNewEntryChange("orderNumber", e.target.value)
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="border">
+                      <ObjectAutocomplete
+                        value={newEntry.object}
+                        onChange={(value) =>
+                          handleNewEntryChange("object", value)
+                        }
+                        placeholder="Inselweg 31"
+                      />
+                    </TableCell>
+                    <TableCell className="border">
+                      <LocationAutocomplete
+                        value={newEntry.location}
+                        onChange={(value) =>
+                          handleNewEntryChange("location", value)
+                        }
+                        placeholder="Hurden"
+                      />
+                    </TableCell>
+                    <TableCell className="border w-14 text-center">
+                      <Input
+                        type="number"
+                        value={newEntry.hours || ""}
+                        onChange={(e) =>
+                          handleNewEntryChange(
+                            "hours",
+                            parseFloat(e.target.value) || 0,
+                          )
+                        }
+                        placeholder="5.00"
+                      />
+                    </TableCell>
+                    <TableCell className="border w-14 text-center">
+                      <Input
+                        type="number"
+                        value={newEntry.absences || ""}
+                        onChange={(e) =>
+                          handleNewEntryChange(
+                            "absences",
+                            parseFloat(e.target.value) || 0,
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="border w-14 text-center">
+                      <Input
+                        type="number"
+                        value={newEntry.overtime || ""}
+                        onChange={(e) =>
+                          handleNewEntryChange(
+                            "overtime",
+                            parseFloat(e.target.value) || 0,
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="border">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="text"
+                          value={newEntry.expenses || ""}
+                          className="cursor-pointer"
+                          readOnly
+                          onClick={() => {
+                            setTempExpenses(newEntry.expenses || "");
+                            setExpensesDialogOpen(true);
+                          }}
+                          placeholder="Auslagen und Bemerkungen"
+                        />
+                        
+                        <Dialog open={expensesDialogOpen} onOpenChange={setExpensesDialogOpen}>
+                          <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle>Auslagen und Bemerkungen eingeben</DialogTitle>
+                            </DialogHeader>
+                            <Textarea 
+                              value={tempExpenses} 
+                              onChange={(e) => setTempExpenses(e.target.value)}
+                              className="min-h-[150px]"
+                              placeholder="Auslagen und Bemerkungen hier eingeben..."
+                            />
+                            <DialogFooter>
+                              <Button 
+                                type="submit" 
+                                onClick={() => {
+                                  handleNewEntryChange("expenses", tempExpenses);
+                                  setExpensesDialogOpen(false);
+                                }}
+                              >
+                                Speichern
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </TableCell>
+                    <TableCell className="border w-16 text-center">
+                      <Input
+                        type="number"
+                        value={newEntry.expenseAmount || ""}
+                        onChange={(e) =>
+                          handleNewEntryChange(
+                            "expenseAmount",
+                            parseFloat(e.target.value) || 0,
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="border">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="text"
+                          value={newEntry.notes || ""}
+                          className="cursor-pointer"
+                          readOnly
+                          onClick={() => {
+                            setTempNotes(newEntry.notes || "");
+                            setNotesDialogOpen(true);
+                          }}
+                          placeholder="Notizen"
+                        />
+                        
+                        <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+                          <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle>Notizen eingeben</DialogTitle>
+                            </DialogHeader>
+                            <Textarea 
+                              value={tempNotes} 
+                              onChange={(e) => setTempNotes(e.target.value)}
+                              className="min-h-[150px]"
+                              placeholder="Notizen hier eingeben..."
+                            />
+                            <DialogFooter>
+                              <Button 
+                                type="submit" 
+                                onClick={handleSaveNotes}
+                              >
+                                Speichern
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </TableCell>
+                    <TableCell className="border"></TableCell>
+                  </TableRow>
+                  {/* Summary rows */}
+                  <TableRow>
+                    <TableCell colSpan={3} className="border"></TableCell>
+                    <TableCell className="border font-bold text-foreground">
+                      Total
+                    </TableCell>
+                    <TableCell className="border font-bold text-foreground w-14 text-center">
+                      {totalHours.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="border font-bold text-foreground w-14 text-center">
+                      {totalAbsences > 0 ? totalAbsences.toFixed(2) : ""}
+                    </TableCell>
+                    <TableCell className="border font-bold text-foreground w-14 text-center">
+                      {totalOvertime > 0 ? totalOvertime.toFixed(2) : ""}
+                    </TableCell>
+                    <TableCell className="border"></TableCell>
+                    <TableCell className="border font-bold text-foreground w-16 text-center">
+                      Total {totalExpenses.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="border"></TableCell>
+                    <TableCell className="border"></TableCell>
+                    <TableCell className="border"></TableCell>
+                  </TableRow>
+
+                  <TableRow>
+                    <TableCell colSpan={3} className="border"></TableCell>
+                    <TableCell className="border font-bold text-foreground">
+                      Total Sollstunden
+                    </TableCell>
+                    <TableCell className="border font-bold text-foreground w-14 text-center">
+                      {totalRequiredHours.toFixed(2)}
+                    </TableCell>
+                    <TableCell colSpan={7} className="border"></TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Button onClick={handleAddEntry}>Eintrag hinzufügen</Button>
           </div>
         </CardContent>
       </Card>

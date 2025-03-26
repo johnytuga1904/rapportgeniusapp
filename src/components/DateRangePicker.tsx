@@ -1,14 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 interface DateRangePickerProps {
   value: string;
@@ -21,9 +16,8 @@ export default function DateRangePicker({
   onChange,
   placeholder = "Zeitraum auswählen",
 }: DateRangePickerProps) {
-  const [date, setDate] = useState<Date | undefined>(new Date());
   const [open, setOpen] = useState(false);
-
+  
   // Predefined date ranges for the 1st and 2nd half of the month
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
@@ -60,50 +54,53 @@ export default function DateRangePicker({
     localStorage.setItem("periodEnd", secondHalfEnd.toISOString());
   };
 
+  const handleSelectDate = (date: Date | undefined) => {
+    if (date) {
+      onChange(format(date, "dd. MMMM yyyy"));
+      setOpen(false);
+    }
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button
           variant="outline"
-          className={cn(
-            "w-full justify-start text-left font-normal",
-            !value && "text-muted-foreground",
-          )}
+          className="w-full justify-start text-left font-normal"
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {value || placeholder}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] sm:w-auto p-0" align="start">
-        <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={handleFirstHalf}
-          >
-            Rapport 1: 01. - 15. {format(firstHalfStart, "MMMM yyyy")}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={handleSecondHalf}
-          >
-            Rapport 2: 16. - {format(secondHalfEnd, "dd. MMMM yyyy")}
-          </Button>
+      </DialogTrigger>
+      <DialogContent className="p-0 sm:max-w-[425px]">
+        <div className="p-4 space-y-2">
+          <h4 className="font-medium">Zeitraum auswählen</h4>
+          <div className="grid gap-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={handleFirstHalf}
+            >
+              Rapport 1: 01. - 15. {format(firstHalfStart, "MMMM yyyy")}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={handleSecondHalf}
+            >
+              Rapport 2: 16. - {format(secondHalfEnd, "dd. MMMM yyyy")}
+            </Button>
+          </div>
+          <div className="mt-4">
+            <Calendar
+              mode="single"
+              selected={undefined}
+              onSelect={handleSelectDate}
+              initialFocus
+            />
+          </div>
         </div>
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={(newDate) => {
-            setDate(newDate);
-            if (newDate) {
-              onChange(format(newDate, "dd. MMMM yyyy"));
-              setOpen(false);
-            }
-          }}
-          initialFocus
-        />
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 }
