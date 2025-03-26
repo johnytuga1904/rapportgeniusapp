@@ -2,15 +2,77 @@ import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 import { SavedReport } from '@/types/reports';
 
-type Report = Database['public']['Tables']['reports']['Row'];
-type ReportInsert = Database['public']['Tables']['reports']['Insert'];
-type ReportUpdate = Database['public']['Tables']['reports']['Update'];
+// Fallback-Typen für den Fall, dass die Supabase-Typen nicht korrekt geladen werden
+interface ReportRow {
+  id: string;
+  user_id: string;
+  date: string;
+  name: string | null;
+  period: string | null;
+  content: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
 
-type Object = Database['public']['Tables']['objects']['Row'];
-type ObjectInsert = Database['public']['Tables']['objects']['Insert'];
-type ObjectUpdate = Database['public']['Tables']['objects']['Update'];
+interface ReportInsertType {
+  id?: string;
+  user_id: string;
+  date?: string;
+  name?: string | null;
+  period?: string | null;
+  content?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
 
-// Interface for CSV files
+interface ReportUpdateType {
+  id?: string;
+  user_id?: string;
+  date?: string;
+  name?: string | null;
+  period?: string | null;
+  content?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
+interface ObjectRow {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ObjectInsertType {
+  id?: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface ObjectUpdateType {
+  id?: string;
+  user_id?: string;
+  name?: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Versuche, die Supabase-Typen zu verwenden, mit Fallback auf die manuell definierten Typen
+type Report = Database extends { public: { Tables: { reports: { Row: infer R } } } } ? R : ReportRow;
+type ReportInsert = Database extends { public: { Tables: { reports: { Insert: infer I } } } } ? I : ReportInsertType;
+type ReportUpdate = Database extends { public: { Tables: { reports: { Update: infer U } } } } ? U : ReportUpdateType;
+
+type Object = Database extends { public: { Tables: { objects: { Row: infer R } } } } ? R : ObjectRow;
+type ObjectInsert = Database extends { public: { Tables: { objects: { Insert: infer I } } } } ? I : ObjectInsertType;
+type ObjectUpdate = Database extends { public: { Tables: { objects: { Update: infer U } } } } ? U : ObjectUpdateType;
+
+// Interface für CSV-Dateien
 interface CSVFile {
   id: string;
   filename: string;
