@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +23,8 @@ interface SavedReport {
   name: string;
   period: string;
   date: string;
-  entries: any[];
+  content: string;
+  created_at: string;
 }
 
 interface ReportHistoryProps {
@@ -33,87 +35,122 @@ interface ReportHistoryProps {
 export default function ReportHistory({ onLoadReport, iconOnly = false }: ReportHistoryProps) {
   const [open, setOpen] = useState(false);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load saved reports from localStorage when component mounts
-  useEffect(() => {
-    const reports = localStorage.getItem("savedReports");
-    if (reports) {
-      try {
-        setSavedReports(JSON.parse(reports));
-      } catch (error) {
-        console.error("Error parsing saved reports:", error);
-      }
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Nicht eingeloggt');
+
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedReports(data || []);
+    } catch (error) {
+      console.error('Fehler beim Laden der Berichte:', error);
+      setError(error instanceof Error ? error.message : 'Fehler beim Laden der Berichte');
+    } finally {
+      setLoading(false);
     }
-  }, [open]); // Reload when dialog opens
-
-  const handleLoadReport = (report: SavedReport) => {
-    onLoadReport(report);
-    setOpen(false);
   };
 
-  const handleDeleteReport = (id: string) => {
-    const updatedReports = savedReports.filter((report) => report.id !== id);
-    setSavedReports(updatedReports);
-    localStorage.setItem("savedReports", JSON.stringify(updatedReports));
+  useEffect(() => {
+    if (open) {
+      fetchReports();
+    }
+  }, [open]);
+
+  const handleLoadReport = (report: SavedReport) => {
+    try {
+      const reportData = JSON.parse(report.content);
+      onLoadReport(reportData);
+      setOpen(false);
+    } catch (error) {
+      console.error('Fehler beim Laden des Berichts:', error);
+      setError('Fehler beim Laden des Berichts');
+    }
+  };
+
+  const handleDeleteReport = async (id: string) => {
+    if (!confirm('Möchten Sie diesen Bericht wirklich löschen?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setSavedReports(savedReports.filter(report => report.id !== id));
+      alert('Bericht erfolgreich gelöscht!');
+    } catch (error) {
+      console.error('Fehler beim Löschen des Berichts:', error);
+      alert('Fehler beim Löschen: ' + (error instanceof Error ? error.message : 'Unbekannter Fehler'));
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className={`inline-flex items-center justify-center ${iconOnly ? 'p-2' : ''}`} title="Gespeicherte Berichte">
-          <History className="h-5 w-5" />
-          {!iconOnly && <span className="ml-2">Gespeicherte Berichte</span>}
+        <Button variant="outline" size={iconOnly ? "icon" : "default"}>
+          <History className="h-4 w-4" />
+          {!iconOnly && <span className="ml-2">Berichte</span>}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Gespeicherte Arbeitsrapporte</DialogTitle>
+          <DialogTitle>Gespeicherte Berichte</DialogTitle>
         </DialogHeader>
-        <div className="py-4">
-          {savedReports.length === 0 ? (
-            <p className="text-center text-muted-foreground">
-              Keine gespeicherten Berichte gefunden.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Zeitraum</TableHead>
-                  <TableHead>Gespeichert am</TableHead>
-                  <TableHead>Aktionen</TableHead>
+        {loading ? (
+          <div>Lade Berichte...</div>
+        ) : error ? (
+          <div className="text-red-500">{error}</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Zeitraum</TableHead>
+                <TableHead>Datum</TableHead>
+                <TableHead>Aktionen</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {savedReports.map((report) => (
+                <TableRow key={report.id}>
+                  <TableCell>{report.name}</TableCell>
+                  <TableCell>{report.period}</TableCell>
+                  <TableCell>{new Date(report.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleLoadReport(report)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteReport(report.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {savedReports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell>{report.name}</TableCell>
-                    <TableCell>{report.period}</TableCell>
-                    <TableCell>{report.date}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleLoadReport(report)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleDeleteReport(report.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </DialogContent>
     </Dialog>
   );

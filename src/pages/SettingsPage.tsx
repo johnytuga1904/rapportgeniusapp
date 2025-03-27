@@ -1,28 +1,28 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React from 'react';
+import { SMTPConfig } from '../components/SMTPConfig';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 
 export function SettingsPage() {
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto py-8">
       <BackToDashboardButton />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Einstellungen</CardTitle>
-          <CardDescription>Verwalten Sie Ihre Anwendungseinstellungen</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Placeholder for future settings */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium">Anwendungseinstellungen</h3>
-              <p className="text-sm text-muted-foreground">
-                Hier können zukünftige Einstellungen hinzugefügt werden
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <h1 className="text-2xl font-bold mb-6">Einstellungen</h1>
+      
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>E-Mail-Einstellungen</CardTitle>
+            <CardDescription>
+              Konfigurieren Sie Ihre E-Mail-Einstellungen für den Versand von Arbeitsberichten.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SMTPConfig />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
