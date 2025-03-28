@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 
 interface DateRangePickerProps {
@@ -30,7 +31,7 @@ export default function DateRangePicker({
 
   const formatDateRange = (start: Date, end: Date) => {
     const startStr = format(start, "dd.");
-    const endStr = format(end, "dd. MMMM yyyy");
+    const endStr = format(end, "dd. MMMM yyyy", { locale: de });
     return `${startStr} - ${endStr}`;
   };
 
@@ -56,7 +57,7 @@ export default function DateRangePicker({
 
   const handleSelectDate = (date: Date | undefined) => {
     if (date) {
-      onChange(format(date, "dd. MMMM yyyy"));
+      onChange(format(date, "dd. MMMM yyyy", { locale: de }));
       setOpen(false);
     }
   };
@@ -73,22 +74,24 @@ export default function DateRangePicker({
         </Button>
       </DialogTrigger>
       <DialogContent className="p-0 sm:max-w-[425px]">
+        <DialogHeader className="p-4 pb-0">
+          <DialogTitle>Zeitraum auswählen</DialogTitle>
+        </DialogHeader>
         <div className="p-4 space-y-2">
-          <h4 className="font-medium">Zeitraum auswählen</h4>
           <div className="grid gap-2">
             <Button
               variant="outline"
               className="w-full justify-start"
               onClick={handleFirstHalf}
             >
-              Rapport 1: 01. - 15. {format(firstHalfStart, "MMMM yyyy")}
+              Rapport 1: 01. - 15. {format(firstHalfStart, "MMMM yyyy", { locale: de })}
             </Button>
             <Button
               variant="outline"
               className="w-full justify-start"
               onClick={handleSecondHalf}
             >
-              Rapport 2: 16. - {format(secondHalfEnd, "dd. MMMM yyyy")}
+              Rapport 2: 16. - {format(secondHalfEnd, "dd. MMMM yyyy", { locale: de })}
             </Button>
           </div>
           <div className="mt-4">

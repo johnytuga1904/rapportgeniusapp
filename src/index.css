@@ -46,6 +46,23 @@
   }
 }
 
+/* Entfernen der Spin-Buttons bei numerischen Eingabefeldern */
+input[type="number"] {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  text-align: center;
+}
+
 /* Test-Style */
 .test-style {
   background-color: red !important;
