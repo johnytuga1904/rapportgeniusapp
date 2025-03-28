@@ -131,17 +131,44 @@ export default function PieChart({ savedReports }: PieChartProps) {
     // Log objects for debugging
     console.log("Available objects:", objects);
 
-    // Force update the list of all objects
-    setAllObjects([...objects]);
+    // Update the list of all objects
+    setAllObjects(objects);
+  }, [savedReports, timeSpan]);
 
-    // If no objects are selected yet or if the objects have changed, select all of them
-    if (
+  // This useEffect handles the selectedObjects updates separately
+  // to avoid infinite loops
+  useEffect(() => {
+    if (allObjects.length > 0 && (
       selectedObjects.length === 0 ||
-      !selectedObjects.every((obj) => objects.includes(obj)) ||
-      objects.length !== selectedObjects.length
-    ) {
-      setSelectedObjects([...objects]);
+      !selectedObjects.every((obj) => allObjects.includes(obj)) ||
+      (selectedObjects.length !== allObjects.length && 
+       JSON.stringify(selectedObjects.sort()) !== JSON.stringify(allObjects.sort()))
+    )) {
+      setSelectedObjects([...allObjects]);
     }
+  }, [allObjects]);
+
+  // This useEffect handles filtering and chart data calculation
+  useEffect(() => {
+    if (!savedReports || savedReports.length === 0 || allObjects.length === 0) {
+      return;
+    }
+
+    // Aggregate hours by object within the selected time span
+    const objectHours: Record<string, number> = {};
+    let total = 0;
+
+    savedReports.forEach((report) => {
+      report.entries.forEach((entry) => {
+        if (entry.object && entry.hours && selectedObjects.includes(entry.object)) {
+          if (!objectHours[entry.object]) {
+            objectHours[entry.object] = 0;
+          }
+          objectHours[entry.object] += entry.hours;
+          total += entry.hours;
+        }
+      });
+    });
 
     // Filter data based on selected objects
     const filteredObjectHours = Object.entries(objectHours)
@@ -174,7 +201,7 @@ export default function PieChart({ savedReports }: PieChartProps) {
 
     setChartData(data);
     setTotalHours(filteredTotal);
-  }, [savedReports, timeSpan, selectedObjects]);
+  }, [savedReports, selectedObjects]);
 
   // Calculate the SVG parameters for the pie chart
   const radius = 100;

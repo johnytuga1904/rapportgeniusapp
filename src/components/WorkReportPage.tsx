@@ -1,34 +1,64 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Download,
-  Send,
-  Save,
-} from "lucide-react";
-import WorkReport from "./WorkReport";
-import VoiceInput from "./VoiceInput";
-import ReportHistory from "./ReportHistory";
-import { format } from "date-fns";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import WorkReport from "@/components/WorkReport";
+import ReportHistory from "@/components/ReportHistory";
+import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { SavedReport, isDatabaseReport, isLocalReport, LocalSavedReport, DatabaseSavedReport } from "@/types/reports";
+import { Save, Download } from "lucide-react";
 
-interface SavedReport {
-  id: string;
+// Einfache Toast-Funktion ohne externe Abhängigkeiten
+const showToast = {
+  success: (message: string) => {
+    console.log(`SUCCESS: ${message}`);
+    alert(message);
+  },
+  error: (message: string) => {
+    console.error(`ERROR: ${message}`);
+    alert(`Fehler: ${message}`);
+  }
+};
+
+// Definiere einen Typ für die Arbeitsdaten
+interface WorkReportData {
   name: string;
   period: string;
-  date: string;
-  entries: any[];
+  date?: string;
+  entries: Array<{
+    date: string | Date;
+    orderNumber: string;
+    object: string;
+    location: string;
+    hours: number;
+    absences: number;
+    overtime: number;
+    expenses: string;
+    expenseAmount: number;
+    notes?: string;
+  }>;
 }
 
 export default function WorkReportPage() {
-  const [workReportData, setWorkReportData] = useState<any>(null);
+  // State für den aktuellen Arbeitsrapport
+  const [workReportData, setWorkReportData] = useState<WorkReportData>({
+    name: "",
+    period: "",
+    entries: [],
+  });
+
+  // State für gespeicherte Berichte
+  const [savedReports, setSavedReports] = useState<LocalSavedReport[]>([]);
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
-  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const exportToExcel = () => {
@@ -127,7 +157,7 @@ export default function WorkReportPage() {
     setEmailDialogOpen(true);
   };
 
-  const handleSendEmail = (report: any) => {
+  const handleSendEmail = (report: LocalSavedReport | WorkReportData) => {
     if (!report || !report.name || !report.period || !report.entries || report.entries.length === 0) {
       alert("Bitte füllen Sie zuerst den Arbeitsrapport aus.");
       return;
@@ -150,10 +180,8 @@ export default function WorkReportPage() {
     });
 
     // Calculate total hours
-    const totalHours = report.entries.reduce(
-      (total: number, entry: any) => total + parseFloat(entry.hours || 0),
-      0
-    );
+    const totalHours = calculateTotalHours(report.entries);
+
     body += `Gesamtstunden: ${totalHours.toFixed(2)}`;
 
     // Create mailto link
@@ -165,7 +193,7 @@ export default function WorkReportPage() {
     setEmailDialogOpen(false);
 
     // Ensure background color is maintained
-    document.body.style.backgroundColor = "#f3f4f6";
+    document.body.style.backgroundColor = "#ffffff";
 
     // Open email client
     window.location.href = mailtoLink;
@@ -177,17 +205,17 @@ export default function WorkReportPage() {
       return;
     }
 
-    const reportToSave: SavedReport = {
+    const reportToSave: LocalSavedReport = {
       id: currentReportId || uuidv4(),
       name: workReportData.name || "Unbenannter Bericht",
       period: workReportData.period || "Kein Zeitraum",
-      date: format(new Date(), "dd.MM.yyyy HH:mm"),
+      date: new Date().toISOString(),
       entries: workReportData.entries || [],
     };
 
     // Get existing reports
     const existingReportsStr = localStorage.getItem("savedReports");
-    let existingReports: SavedReport[] = [];
+    let existingReports: LocalSavedReport[] = [];
 
     if (existingReportsStr) {
       existingReports = JSON.parse(existingReportsStr);
@@ -209,17 +237,90 @@ export default function WorkReportPage() {
     // Update current report ID
     setCurrentReportId(reportToSave.id);
 
-    alert("Bericht wurde gespeichert!");
+    showToast.success("Bericht wurde gespeichert!");
   };
 
+  // Adapter-Funktion, um die verschiedenen SavedReport-Typen zu konvertieren
   const handleLoadReport = (report: SavedReport) => {
-    setWorkReportData({
-      name: report.name,
-      period: report.period,
-      entries: report.entries,
-    });
-    setCurrentReportId(report.id);
+    if (isDatabaseReport(report)) {
+      try {
+        // Für Berichte aus der Datenbank
+        const parsedContent = JSON.parse(report.content);
+        setWorkReportData({
+          name: report.name,
+          period: report.period,
+          date: report.date,
+          entries: parsedContent.entries || []
+        });
+      } catch (error) {
+        console.error("Fehler beim Parsen des Berichts:", error);
+        showToast.error("Der Bericht konnte nicht geladen werden.");
+      }
+    } else {
+      // Für lokale Berichte
+      setWorkReportData({
+        name: report.name,
+        period: report.period,
+        date: report.date,
+        entries: report.entries
+      });
+    }
   };
+
+  // Lade gespeicherte Berichte aus der Datenbank
+  useEffect(() => {
+    const fetchDatabaseReports = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('reports')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Fehler beim Laden der Berichte:', error);
+          return;
+        }
+
+        // Lokale Berichte aus den Datenbankberichten laden
+        const localReports = data.map(report => {
+          try {
+            const content = JSON.parse(report.content);
+            return {
+              id: report.id,
+              name: report.name,
+              period: report.period,
+              date: report.created_at,
+              entries: content.entries || []
+            };
+          } catch (e) {
+            console.error('Fehler beim Parsen des Berichtsinhalts:', e);
+            return null;
+          }
+        }).filter(Boolean) as LocalSavedReport[];
+        
+        setSavedReports(prevReports => {
+          // Kombiniere lokale und Datenbankberichte, entferne Duplikate
+          const combinedReports = [...prevReports];
+          localReports.forEach(report => {
+            if (!combinedReports.some(r => r.id === report.id)) {
+              combinedReports.push(report);
+            }
+          });
+          return combinedReports;
+        });
+      } catch (error) {
+        console.error('Fehler beim Laden der Berichte aus der Datenbank:', error);
+      }
+    };
+
+    fetchDatabaseReports();
+  }, []);
 
   // Load saved reports from localStorage when component mounts
   useEffect(() => {
@@ -233,22 +334,10 @@ export default function WorkReportPage() {
     }
   }, []);
 
-  // Update saved reports when a new report is saved
-  useEffect(() => {
-    const reports = localStorage.getItem("savedReports");
-    if (reports) {
-      try {
-        setSavedReports(JSON.parse(reports));
-      } catch (error) {
-        console.error("Error parsing saved reports:", error);
-      }
-    }
-  }, [currentReportId]);
-
   // Add a CSS class to maintain background color after loading a report
   useEffect(() => {
     // Set the background color of the body element
-    document.body.style.backgroundColor = "#f3f4f6";
+    document.body.style.backgroundColor = "#ffffff";
     
     // Clean up function to reset when component unmounts
     return () => {
@@ -256,31 +345,47 @@ export default function WorkReportPage() {
     };
   }, []);
 
+  // Calculate total hours
+  const calculateTotalHours = (entries: any[]) => {
+    return entries.reduce(
+      (total: number, entry: any) => {
+        // Sicherstellen, dass wir eine Zahl haben, egal welchen Typ entry.hours hat
+        const hours = typeof entry.hours === 'number' 
+          ? entry.hours 
+          : parseFloat(entry.hours || '0');
+        return total + hours;
+      },
+      0
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-[#f3f4f6]">
-      <div className="container mx-auto p-2 sm:p-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-black text-center sm:text-left">
+    <div className="min-h-screen bg-white">
+      <div className="container mx-auto p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 text-center sm:text-left">
             Arbeitsrapport-Generator
           </h1>
-          <div className="flex flex-wrap justify-center sm:justify-end gap-2">
-            <VoiceInput
-              onTranscript={(text) => {
-                // Here you would implement logic to parse the voice input
-                // and update the appropriate fields
-                console.log("Voice input:", text);
-              }}
-              iconOnly={true}
+          <div className="flex flex-wrap justify-center sm:justify-end gap-3">
+            <ReportHistory 
+              onLoadReport={handleLoadReport} 
+              iconOnly={true} 
             />
-            <ReportHistory onLoadReport={handleLoadReport} iconOnly={true} />
-            <Button variant="outline" onClick={saveReport} className="inline-flex items-center justify-center p-2" title="Speichern">
+            <Button 
+              variant="outline" 
+              onClick={saveReport} 
+              className="inline-flex items-center justify-center p-2 border-blue-600 text-blue-600 hover:bg-blue-50 transition-colors" 
+              title="Speichern"
+            >
               <Save className="h-5 w-5" />
             </Button>
-            <Button variant="outline" onClick={exportToExcel} className="inline-flex items-center justify-center p-2" title="Excel exportieren">
+            <Button 
+              variant="outline" 
+              onClick={exportToExcel} 
+              className="inline-flex items-center justify-center p-2 border-blue-600 text-blue-600 hover:bg-blue-50 transition-colors" 
+              title="Excel exportieren"
+            >
               <Download className="h-5 w-5" />
-            </Button>
-            <Button onClick={sendEmail} className="inline-flex items-center justify-center p-2" title="Per E-Mail senden">
-              <Send className="h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -295,39 +400,51 @@ export default function WorkReportPage() {
         <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
           <DialogContent className="sm:max-w-[600px] bg-white">
             <DialogHeader>
-              <DialogTitle>Bericht per E-Mail senden</DialogTitle>
+              <DialogTitle className="text-xl text-gray-800">Bericht per E-Mail senden</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <p className="mb-4 text-sm text-gray-600">
-                Wählen Sie einen gespeicherten Bericht aus, den Sie per E-Mail senden möchten:
+                Wählen Sie einen Bericht aus, den Sie per E-Mail senden möchten:
               </p>
-              
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {/* Current report option */}
-                {workReportData && workReportData.name && workReportData.period && (
-                  <div 
-                    className="p-3 border rounded-md cursor-pointer hover:bg-gray-100 bg-gray-50"
-                    onClick={() => handleSendEmail(workReportData)}
-                  >
-                    <span className="font-semibold">Aktueller Bericht:</span> {workReportData.name} - {workReportData.period}
+              <div className="max-h-[300px] overflow-y-auto border border-gray-200 rounded-md">
+                {savedReports.length > 0 ? (
+                  <div className="divide-y divide-gray-200">
+                    {savedReports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => handleSendEmail(report)}
+                      >
+                        <div className="font-medium text-gray-800">{report.name}</div>
+                        <div className="text-sm text-gray-600">
+                          Zeitraum: {report.period}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Gespeichert am: {report.date}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-                
-                {/* Saved reports */}
-                {savedReports.map((report) => (
-                  <div 
-                    key={report.id}
-                    className="p-3 border rounded-md cursor-pointer hover:bg-gray-100 bg-gray-50"
-                    onClick={() => handleSendEmail(report)}
-                  >
-                    <span className="font-semibold">{report.name}</span> - {report.period} ({report.date})
+                ) : (
+                  <div className="p-4 text-center text-gray-500">
+                    Keine gespeicherten Berichte gefunden.
                   </div>
-                ))}
-                
-                {savedReports.length === 0 && !workReportData && (
-                  <p className="text-center text-gray-500 italic">Keine Berichte verfügbar</p>
                 )}
               </div>
+              <div className="mt-4 text-sm text-gray-500">
+                Oder senden Sie den aktuellen Bericht:
+              </div>
+              <Button
+                onClick={() => workReportData && handleSendEmail(workReportData)}
+                className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                disabled={
+                  !workReportData ||
+                  !workReportData.entries ||
+                  workReportData.entries.length === 0
+                }
+              >
+                Aktuellen Bericht senden
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

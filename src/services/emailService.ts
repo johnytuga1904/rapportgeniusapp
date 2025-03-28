@@ -9,6 +9,11 @@ interface SMTPConfig {
   fromEmail: string;
 }
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 class EmailService {
   async sendEmail(to: string, subject: string, html: string) {
     try {
@@ -84,46 +89,51 @@ class EmailService {
     }
   }
 
-  async sendReportWithAttachment(to: string, report: any, xlsxBuffer: string, filename: string) {
+  async sendReportWithAttachment(
+    recipientEmail: string,
+    report: any,
+    attachment: Buffer,
+    attachmentFilename: string
+  ): Promise<void> {
     try {
-      const subject = `Arbeitsrapport: ${report.name} - ${report.period}`;
-      
-      // Simplified HTML-Template for emails with attachments
-      const html = `
-        <h2>Arbeitsrapport für ${report.name}</h2>
-        <p><strong>Zeitraum:</strong> ${report.period}</p>
+      // Hole den aktuellen Benutzer
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Nicht eingeloggt');
+      }
+
+      // Erstelle den E-Mail-Text
+      const emailText = `
+        Arbeitsrapport: ${report.name}
+        Zeitraum: ${report.period}
         
-        <p>Im Anhang finden Sie den Arbeitsrapport als CSV-Datei.</p>
+        Zusammenfassung:
+        - Gesamtstunden: ${report.entries.reduce((sum: number, entry: any) => sum + entry.hours, 0)}
+        - Gesamtabsenzen: ${report.entries.reduce((sum: number, entry: any) => sum + entry.absences, 0)}
+        - Gesamtüberstunden: ${report.entries.reduce((sum: number, entry: any) => sum + entry.overtime, 0)}
+        - Gesamtspesen: ${report.entries.reduce((sum: number, entry: any) => sum + entry.expenseAmount, 0)}
         
-        ${report.notes ? `<p><strong>Notizen:</strong><br>${report.notes}</p>` : ''}
+        Der detaillierte Bericht ist als XLSX-Datei angehängt.
       `;
 
-      // Hole den aktuellen Benutzer
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) throw new Error('Nicht eingeloggt');
-
-      // Sende E-Mail über Edge Function
-      const { data, error } = await supabase.functions.invoke('send-email', {
+      // Rufe die Edge Function auf
+      const { error } = await supabase.functions.invoke('send-email', {
         body: {
-          to,
-          subject,
-          html,
-          userId: user.id,
-          attachments: [{
-            filename,
-            content: xlsxBuffer,
-            encoding: 'base64'
-          }]
+          to: recipientEmail,
+          subject: `Arbeitsrapport: ${report.name} - ${report.period}`,
+          text: emailText,
+          attachment: {
+            filename: attachmentFilename,
+            content: attachment.toString('base64')
+          }
         }
       });
 
-      if (error) throw error;
-      console.log('E-Mail mit Anhang erfolgreich gesendet:', data);
-      return data;
-
+      if (error) {
+        throw error;
+      }
     } catch (error) {
-      console.error('Fehler beim Senden der E-Mail mit Anhang:', error);
+      console.error('Fehler beim Senden der E-Mail:', error);
       throw error;
     }
   }
